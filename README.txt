@@ -7,4 +7,6 @@ Part A:
 Part B:
 
 	My part B is called "poop volcano". The poop mountain in the middle is effusing fire
-	sparks. The intensity of the lava is adjustable. 
+	sparks. The intensity of the lava is adjustable. There are some textured point sprite
+	in the air that represnts the fire ashes. I think it's a very beautiful scene. Hope
+	you enjoy it.  
