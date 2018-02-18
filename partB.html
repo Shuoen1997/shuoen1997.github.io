@@ -42,8 +42,45 @@
 	<script src="js/dat.gui.min.js"></script>
 	<script src="js/TrackballControls.js"></script>
 	<script src="js/GPUParticleSystem.js"></script>
+	<script type="x-shader/x-vertex" id="PointVertexshader">
 
-	 <script id="vertexShader" type="x-shader/x-vertex">
+			//uniform float amplitude;
+			attribute float size;
+			attribute vec3 customColor;
+
+			varying vec3 vColor;
+
+			void main() {
+
+				vColor = customColor;
+
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+
+				gl_PointSize = size * ( 60.0 / -mvPosition.z );
+
+				gl_Position = projectionMatrix * mvPosition;
+
+			}
+
+		</script>
+
+		<script type="x-shader/x-fragment" id="PointFragmentshader">
+
+			uniform vec3 color;
+			uniform sampler2D texture;
+
+			varying vec3 vColor;
+
+			void main() {
+
+				gl_FragColor = vec4( color * vColor, 1.0 );
+				gl_FragColor = gl_FragColor * texture2D( texture, gl_PointCoord );
+
+			}
+
+		</script>
+
+	<script id="vertexShader" type="x-shader/x-vertex">
 
 	uniform mat4 modelMatrix;
 	uniform mat4 viewMatrix;
@@ -218,7 +255,8 @@ float turbulence( vec3 p ) {
 			lavaFrequency: 0.001,
 			lavaHeight: 3.0
 		}
-
+		var boxofpoints;
+		var tex = new THREE.TextureLoader().load("img/lava.png");
 		init();
 		animate();
 
@@ -230,6 +268,8 @@ float turbulence( vec3 p ) {
 
 			var vs = document.getElementById( 'vertexShader').textContent;
 			var fs = document.getElementById( 'fragmentShader').textContent;
+			var ptvs = document.getElementById( 'PointVertexshader').textContent;
+			var ptfs= document.getElementById( 'PointFragmentshader').textContent;
 
 			camera = new THREE.PerspectiveCamera( 28, window.innerWidth / window.innerHeight, 1, 10000 );
 			camera.position.z = 150;
@@ -248,6 +288,69 @@ float turbulence( vec3 p ) {
 				object.position.y = position;
 				object.rotation.x = rotation;  
 			}
+
+			var amount = 1000;
+			var radius = 80;
+
+			var positions = new Float32Array( amount * 3 );
+
+			var colors = new Float32Array( amount * 3 );
+			
+			var sizes = new Float32Array( amount );
+
+			var vertex = new THREE.Vector3();
+
+			var color = new THREE.Color( 0xffffff );
+			
+			for ( var i = 0; i < amount; i ++ ) {
+
+				vertex.x = ( Math.random() * 2 - 1 ) * radius;
+				vertex.y = ( Math.random() * 2 - 1 ) * radius;
+				vertex.z = ( Math.random() * 2 - 1 ) * radius;
+				vertex.toArray( positions, i * 3 );
+
+				if ( vertex.x < 0 ) {
+
+					color.setRGB( 1.0, 0.0, 0.0 );
+
+				} else {
+
+					color.setRGB( 1.0, 0.5, 0.0 );
+				}
+
+				color.toArray( colors, i * 3 );
+
+
+				sizes[ i ] = 1;
+
+			}
+
+			var geometry0 = new THREE.BufferGeometry();
+			geometry0.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+			geometry0.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+			geometry0.addAttribute( 'customColor', new THREE.BufferAttribute( colors, 3 ) );
+			//
+
+			var material0 = new THREE.ShaderMaterial( {
+
+				uniforms: {
+					amplitude: { value: 1.0 },
+					color:     { value: new THREE.Color( 'red' ) },
+					texture:   { type: 't', value: tex }
+				},
+				vertexShader:  ptvs,
+				fragmentShader: ptfs
+
+				//blending:       THREE.AdditiveBlending,
+				//depthTest:      false,
+				//transparent:    true
+
+			});
+
+			//
+
+			boxOfPoints = new THREE.Points( geometry0, material0 );
+			scene.add( boxOfPoints );
 
 			var geometry = new THREE.TorusBufferGeometry( 10, 3, 16, 100 );
 			var material = new THREE.MeshLambertMaterial( { color: 0x8B4513 } );
@@ -416,6 +519,20 @@ float turbulence( vec3 p ) {
 			//console.log('value' + lavaFloor.material.uniforms.in_val.value); 
 			lavaFloor.material.uniforms.in_val.value += 0.03;
 			lavaFloor.material.uniforms.displaceAmt.value = intensity.lavaHeight * Math.sin(time * intensity.lavaFrequency);
+
+			var geometry = boxOfPoints.geometry;
+			var attributes = geometry.attributes;
+
+			for ( var i = 0; i < attributes.size.array.length; i++ ) {
+
+				attributes.size.array[ i ] = 10;
+				attributes.position.array[ i ] += 2 * Math.sin(time * 0.00001); 
+				//console.log(attributes.position.array[ i ] + "/n"); 
+
+			}
+
+			attributes.size.needsUpdate = true;
+			attributes.position.needsUpdate = true;
 			
 
 			renderer.render( scene, camera );
