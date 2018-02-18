@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>demo - shader</title>
+		<meta charset="utf-8">
+		<style>
+			body {
+			  margin: 0px;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+	<div id="container"></div>
+
+    <script src="js/three.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <script src="js/water2.js"></script>
+    <script src="js/refractor.js"></script>
+    <script src="js/reflector.js"></script>
+    <script src="js/dat.gui.min.js"></script>
+    <script src="js/MTLLoader.js"></script>
+	<script src="js/OBJLoader.js"></script>
+	
+    
+		
+    <script id="skyboxVS" type="x-shader/x-vertex">
+
+	uniform mat4 modelMatrix;
+	uniform mat4 viewMatrix;
+    uniform mat4 projectionMatrix;
+
+    attribute vec3 position; 
+
+	varying vec3 vWorldPosition;
+	
+	void main() {
+
+		vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+		vWorldPosition = worldPosition.xyz;
+
+		vec4 p = viewMatrix * modelMatrix * vec4(position, 1.0);
+		gl_Position = projectionMatrix * p;
+		
+     	 }
+
+    </script>
+
+
+    <script id="skyboxFS" type="x-shader/x-fragment">
+
+	precision mediump float;
+		
+	uniform samplerCube tCube;
+
+	varying vec3 vWorldPosition;
+
+		void main() {
+
+			gl_FragColor = textureCube( tCube, vec3(  vWorldPosition.xyz ) );
+		}
+	
+    </script>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+    uniform mat4 modelMatrix;
+	uniform mat4 viewMatrix;
+    uniform mat4 projectionMatrix;
+	uniform sampler2D tPic;
+
+    attribute vec3 position;
+	attribute vec2 uv;
+	attribute vec3 normal;
+
+	uniform float displaceAmt; //controls the amount of vertex displacement...
+	
+    varying float vDisplace; 
+	varying vec2 vUv;
+
+
+
+    precision mediump float;
+
+
+	void main() {
+       
+       	vUv = uv;
+		
+		vec4 clr = texture2D(tPic, uv);
+		vDisplace = (clr.r) * displaceAmt; //displacement;
+        vec3 newPosition = (position.xyz + normal.xyz * vDisplace);
+      
+       	gl_Position = projectionMatrix  * viewMatrix * modelMatrix  * vec4( newPosition, 1.0 );
+    }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform sampler2D tCement;
+    uniform sampler2D tCopper; 
+    uniform sampler2D tRed; 
+
+
+    varying vec2 vUv;
+    varying float vDisplace; 
+
+
+    void main() {
+
+		vec4 cement = texture2D(tCement, vUv);
+		vec4 copper = texture2D(tCopper, vUv);
+		vec4 red = texture2D(tRed, vUv);
+		
+
+		float zOffset = vDisplace;
+
+		vec4 mix1 = mix(cement, copper, min(1.0, zOffset));
+		vec4 mix2 = mix( copper, red, min(1.0, zOffset*0.3));
+		vec4 mix3 = mix(mix1, mix2, min(1.0, zOffset));
+
+
+		gl_FragColor = vec4( mix3.rgb, 1.0 );        
+
+   	}
+    </script>
+    <script id="topVertexShader" type="x-shader/x-vertex">
+    uniform mat4 modelMatrix;
+	uniform mat4 viewMatrix;
+    uniform mat4 projectionMatrix;
+	uniform sampler2D ttPic;
+
+    attribute vec3 position;
+	attribute vec2 uv;
+	attribute vec3 normal;
+
+	uniform float tDisplaceAmt; //controls the amount of vertex displacement...
+	
+    varying float tvDisplace; 
+	varying vec2 tvUv;
+
+
+
+    precision mediump float;
+
+
+	void main() {
+       
+       	tvUv = uv;
+		
+		vec4 clr = texture2D(ttPic, uv);
+		tvDisplace = (clr.r) * tDisplaceAmt; //displacement;
+        vec3 newPosition = (position.xyz + normal.xyz * tvDisplace);
+      
+       	gl_Position = projectionMatrix  * viewMatrix * modelMatrix  * vec4( newPosition, 1.0 );
+    }
+    </script>
+    <script id="topFragmentShader" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform sampler2D tGrass; 
+
+
+    varying vec2 tvUv;
+    varying float tvDisplace; 
+
+
+    void main() {
+
+		vec4 grass = texture2D(tGrass, tvUv);
+
+		//float zOffset = tvDisplace;
+
+
+
+		gl_FragColor = vec4( grass.rgb, 1.0 );        
+
+   	}
+    </script>
+    <script>
+    var container;
+
+	var camera, scene, renderer;
+	//the shaders...
+	var hiMap, grassMap, skyMesh, water; 
+	var vs = document.getElementById( 'vertexShader' ).textContent;
+	var fs = document.getElementById( 'fragmentShader' ).textContent;
+	var sb_vs = document.getElementById( 'skyboxVS' ).textContent;
+	var sb_fs = document.getElementById( 'skyboxFS' ).textContent;
+	var tp_vs = document.getElementById( 'topVertexShader' ).textContent;
+	var tp_fs = document.getElementById( 'topFragmentShader' ).textContent;
+
+	//the images... 
+	var cubeMap = new THREE.CubeTextureLoader()
+				.setPath( '/img/cubeMap/' )
+				.load( [
+					'posx.jpg',
+					'negx.jpg',
+					'posy.jpg',
+					'negy.jpg',
+					'posz.jpg',
+					'negz.jpg'
+				] );
+	var snoopy = new THREE.TextureLoader().load( 'img/mapy.png' );
+	var cement = new THREE.TextureLoader().load( 'img/cement.jpg' );
+	var copper = new THREE.TextureLoader().load( 'img/copper.jpg' );
+	var red = new THREE.TextureLoader().load('img/red.jpg' );
+	var grass = new THREE.TextureLoader().load( 'img/grass.jpg' );
+	var dot = new THREE.TextureLoader().load( 'img/grass.jpg' );
+	
+
+	init();
+	animate();
+
+
+
+	
+	function init() {
+	
+
+		container = document.getElementById( 'container' );
+
+		camera = new THREE.PerspectiveCamera( 50.0, window.innerWidth / window.innerHeight, 1, 2000 );
+
+
+		camera.position.z = -10;
+
+
+		scene = new THREE.Scene();
+
+
+
+
+
+		var size = 100;
+		var divisions = 10;
+		var gridHelper = new THREE.GridHelper( size, divisions );
+		
+		var plane_geometry = new THREE.PlaneGeometry( 15, 15, 300, 300 );
+
+		var params = {
+			watercolor: '#ffffff',
+			DisplaceAmt: 3.0,
+		};
+
+		var plane_uni =  {
+			displaceAmt: { type: "f", value: 1.0},
+			tPic: { type: "t", value: snoopy  },
+			tCement: { type: "t", value: cement  },
+			tCopper: { type: "t", value: copper},
+			tRed: { type: "t", value: red}
+		};
+
+
+		var material1 = new THREE.RawShaderMaterial( {
+
+			uniforms: plane_uni,
+			vertexShader: vs,
+			fragmentShader: fs,
+
+		} );
+
+		
+		var params = {
+			watercolor: '#ffffff',
+			scale: 1.0,
+		};
+
+		var material2 = new THREE.RawShaderMaterial( {
+
+			uniforms: { 
+				tDisplaceAmt: { type: "f", value: 1.0},
+				ttPic: { type: "t", value: dot },
+				tGrass: { type: "t", value: grass}
+			},	
+			vertexShader: tp_vs,
+			fragmentShader: tp_fs,
+		})
+
+		hiMap = new THREE.Mesh( plane_geometry, material1 );
+		hiMap.rotateX(3*Math.PI/2);
+		hiMap.position.x = -30;
+		hiMap.position.y = -5;
+		//hiMap.material.side = THREE.DoubleSide;
+		
+		grassMap = new THREE.Mesh( plane_geometry, material2 );
+		grassMap.rotateX(3*Math.PI/2);
+		grassMap.position.x = -30;
+		grassMap.position.y = -5;
+		
+		
+
+		var params = {
+			watercolor: '#ffffff',
+			Scale: 3.0,
+		};
+
+		var waterG = new THREE.CircleBufferGeometry( 130, 32 );
+		water = new THREE.Water( waterG, {
+				color: params.color,
+				scale: params.scale,
+				flowDirection: new THREE.Vector2( params.flowX, params.flowY ),
+				textureWidth: 1024,
+				textureHeight: 1024
+			} );
+		water.rotateX(3*Math.PI/2);
+		water.position.x = -100;
+		water.position.y = -9;
+		water.position.z = 100;
+		//water.rotation.x = 3*Math.PI/7;
+		
+
+		var sb_geometry = new THREE.BoxGeometry( 2000, 2000, 2000 );
+
+		var sb_uniforms = { 
+			"tCube": { type: "t", value: cubeMap },
+			"tFlip": { type: "f", value: -1 } 
+		};
+			
+		var sb_material = new THREE.RawShaderMaterial( {
+			uniforms: sb_uniforms,
+			vertexShader: sb_vs,
+			fragmentShader: sb_fs
+		} );
+
+
+		sb_material.depthWrite = false;
+      	sb_material.side = THREE.BackSide;
+			
+		skyMesh = new THREE.Mesh( sb_geometry, sb_material );
+
+		
+		var mtlLoader = new THREE.MTLLoader();
+		mtlLoader.setPath( 'img/duck/' );
+		mtlLoader.setTexturePath( 'img/duck/' );
+		mtlLoader.setCrossOrigin( false );
+		var url = "RubberDuck.mtl";
+
+		mtlLoader.load( url, function( materials ) {
+
+    		materials.preload();
+
+    		var objLoader = new THREE.OBJLoader();
+    		objLoader.setMaterials( materials );
+    		objLoader.setPath( 'img/duck/' );
+   		 	objLoader.load( 'RubberDuck.obj', function ( object ) {
+   		 		object.position.x = -30;
+   		 		object.position.y = -2;
+
+        		object.position.z = 9;
+        		//scene.add( object );
+
+
+    		});
+
+		});
+
+		scene.add( hiMap );
+		scene.add( grassMap );
+		scene.add( skyMesh );
+		scene.add( water );
+		//scene.add( gridHelper );
+
+
+		renderer = new THREE.WebGLRenderer();
+		renderer.setClearColor( 0x999999 );
+		renderer.setPixelRatio( window.devicePixelRatio );
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		container.appendChild( renderer.domElement );
+
+
+    	window.addEventListener( 'resize', onWindowResize, false );
+
+    	var gui = new dat.GUI();
+		gui.addColor( params, 'watercolor' ).onChange( function( value ) {
+			water.material.uniforms.color.value.set( value );
+		} );
+		gui.add( params, 'Scale', 1.0, 2.0 ).step(0.25).onChange( function( value ) {
+			hiMap.scale.x = value;
+			hiMap.scale.y = value;
+			grassMap.scale.x = value;
+			grassMap.scale.y = value;
+			
+		} );
+
+		gui.open();
+
+		var controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls.update();
+
+
+	}
+
+	function onWindowResize( event ) {
+  
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+
+		renderer.setSize( window.innerWidth, window.innerHeight );
+	}
+			
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+		render();
+
+	}
+	
+	
+	function render() {
+
+		var time = performance.now();
+        var object0 = scene.children[ 0 ];
+        var object1 = scene.children[ 1 ];
+        var object2 = scene.children[ 3 ];
+        
+
+        object0.material.uniforms.displaceAmt.value = 2.0 * Math.sin(time * 0.0001) + 2.5;
+        //object1.position.y = object0.material.uniforms.displaceAmt.value -3.5;
+        
+        object0.position.z = Math.sin(time * 0.000001) * 300;
+        //console.log('z = ' + object0.position.z);
+        object1.position.z = Math.sin(time * 0.000001) * 300;
+        object2.position.z += Math.sin(time * 0.000001) * 0.1;
+
+
+		renderer.render( scene, camera );
+	}
+
+
+	</script>
+
+	</body>
+</html>
