@@ -1,0 +1,18 @@
+This is a scene from my favourite game last summer, Slime Rancher. 
+In this scene, there are eight "plorts" of different colors on the gate 
+that will light up once the corresponding "plorts" are put into their 
+places. I find this scene beautiful and uplifting, just by seeing those
+plorts light up one by one. I surmise that all these plorts all emit
+point lights from themselves. Once it's activated, the light value sets to
+true and illuminate its designated color. These lights also generate moving spiral
+around them, which is really cool. The light will adjust with the camera angle, 
+so if the player is next to those lights, the light diffusion and position seem right. 
+
+We can see that in this scene, the player is
+facing the direction that the sunlight comes from. In this case, the game does
+the shadow accurately because we can see that the gate backing the sun projects the
+shadows. This scene has enough sunlight, and it looks like a beautiful sunny day. 
+All of the objects in this scene are textured. I'm not sure if they are updated pixels
+by pixels, but it doesn't look like their texture are being updated either. Looks more
+like there's an offset for shadow that add to the existing pixel color (rgb or intensity)
+to make it look darker.  

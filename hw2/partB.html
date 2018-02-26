@@ -523,6 +523,8 @@ float turbulence( vec3 p ) {
 			var geometry = boxOfPoints.geometry;
 			var attributes = geometry.attributes;
 
+			boxOfPoints.rotation.z = 0.01 * time;
+
 			for ( var i = 0; i < attributes.size.array.length; i++ ) {
 
 				attributes.size.array[ i ] = 10;
