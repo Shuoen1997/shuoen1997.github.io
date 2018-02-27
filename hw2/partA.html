@@ -191,7 +191,7 @@
 
 	//the images... 
 	var cubeMap = new THREE.CubeTextureLoader()
-				.setPath( '/img/cubeMap/' )
+				.setPath( '/hw2/img/cubeMap/' )
 				.load( [
 					'posx.jpg',
 					'negx.jpg',
@@ -328,7 +328,7 @@
 			
 		skyMesh = new THREE.Mesh( sb_geometry, sb_material );
 
-		
+		/*
 		var mtlLoader = new THREE.MTLLoader();
 		mtlLoader.setPath( 'img/duck/' );
 		mtlLoader.setTexturePath( 'img/duck/' );
@@ -352,7 +352,7 @@
 
     		});
 
-		});
+		});*/
 
 		scene.add( hiMap );
 		scene.add( grassMap );
