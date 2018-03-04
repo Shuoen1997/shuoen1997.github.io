@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<title>
+	Homework3 part B
+</title>
+<style>
+	body{
+		margin: 0px;
+		overflow: hidden;
+	}
+</style>
+<body>
+
+<script src = "js/three.js"></script>
+<script id ="vertexShader" type = "x-shader/x-vertex">
+	varying vec3 v_pos;
+	uniform mat4 modelViewMatrix;
+	uniform mat4 projectionMatrix;
+
+	attribute vec3 position; 
+
+
+	void main(){
+		v_pos = position;  
+		
+		gl_Position = modelViewMatrix * projectionMatrix * vec4(position, 1.0);
+	}
+	 
+</script>
+
+<script id ="fragmentShader" type = "x-shader/x-fragment">
+	
+	precision mediump float; 
+
+	const int MAX_MARCHING_STEPS = 255;
+	const float MIN_DIST = 0.0;
+	const float MAX_DIST = 100.0;
+	const float EPSILON = 0.0001;
+
+	uniform vec2 resolution;
+	uniform float time;
+	uniform float time2;
+	varying vec3 v_pos; 
+	// rotation function
+	mat3 rotateX(float theta){
+		float c = cos(theta);
+		float s = sin(theta);
+		return mat3(vec3(1, 0, 0), vec3(0, c, -s), vec3(0, s, c));
+	}
+	mat3 rotateY(float theta){
+		float c = cos(theta);
+		float s = sin(theta);
+		return mat3(vec3(c, 0, s), vec3(0, 1, 0), vec3(-s, 0, c));
+	}
+	mat3 rotateZ(float theta){
+		float c = cos(theta);
+		float s = sin(theta);
+		return mat3(vec3(c, -s, 0), vec3(s, c, 0), vec3(0, 0, 1));
+	}
+	//如果是正的話，代表這個點不在物體裡，如果是負的話，代表這個點在物體裡
+	//如果是零的話，代表這個點在物體的邊緣上面喔
+
+	//所以交集是找最大值，必須兩個點都在裡面(都是負的)，這個點才會成立
+	float intersectSDF(float distA, float distB){
+		return max(distA, distB);
+	}
+	//如果是聯集的話呢，只要有一個點在裡面(有一個是負的)，這個點就成立
+	float unionSDF(float distA, float distB){
+		return min(distA, distB);
+	}
+	//差集，也就是這個物體是A，但是有B的地方就消除
+	//只要有B的，代表distB一定是負的，所以-distB一定是正的
+	//這代表，-distB一定會大於distA(因為物體A裡的DistA一定是負的麻)
+	//所以只要有B在，點就不成立!
+	float differenceSDF(float distA, float distB){
+		return max(distA, -distB);
+	}
+
+	float sdBox( vec3 p, vec3 b )
+	{
+	  vec3 d = abs(p) - b;
+	  return min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0));
+	}
+
+
+	float sphereSDF(vec3 samplePoint, float len){
+		return length( samplePoint ) - len;
+	}
+	
+	float sdCone( vec3 p, vec2 c )
+	{
+	    // c must be normalized
+	    float q = length(p.xy);
+	    return dot(c,vec2(q,p.z));
+	}
+	float sceneSDF( vec3 samplePoint){
+		//return sphereSDF( samplePoint );
+		//float coneOffset = 0.5 + offset;
+		//return unionSDF(sphereSDF(samplePoint), sdCone( (samplePoint + vec3(coneOffset + 5.0, coneOffset , 1.0)), normalize(vec2(2, 0.3)))/ 0.1 );
+		//return sdCone( samplePoint, normalize(vec2(10, 0.9)));
+		samplePoint = rotateY(4.0 * time * time * time) * samplePoint;
+		//samplePoint = rotateX(time * 0.2) * samplePoint;
+		float offset = sin(time);
+		float offset2 = sin(time2);
+		float Box1 = sdBox( samplePoint + vec3(2.0, -1.0 + 0.2 * offset, 0.0), vec3(0.5));
+		float Box2 = sdBox( samplePoint + vec3(0.0, 0.0 - offset, 0.0), vec3(0.5));
+		float Box3 = sdBox( samplePoint + vec3(-2.0, 0.0 + offset, 0.0), vec3(0.5));
+		float Ball1 = sphereSDF(samplePoint + vec3(2.0, -1.0 + 0.2* offset, 0.0), 0.5 + 0.07 * offset2);
+		float Ball2 = sphereSDF(samplePoint + vec3(0.0, 0.0 + offset, 0.0), 0.5);
+		float Ball3 = sphereSDF(samplePoint + vec3(-2.0, 0.0 - offset, 0.0), 0.5);
+		float Ball4 = sphereSDF(samplePoint + vec3(2.0, -1.0 + 0.2 * offset, 0.0), (0.5 + 0.45 * offset));
+		float Cone = sdCone(samplePoint +  vec3(2.0, 0.0 + offset, 0.0), vec2(0.5, 1.0));
+		//return differenceSDF(unionSDF(Ball1, unionSDF(Ball2, Ball3)), unionSDF(Box1, unionSDF(Box2, Box3)));
+		//return differenceSDF(unionSDF(Box1, unionSDF(Box2, Box3)), unionSDF(Ball1, unionSDF(Ball2, Ball3)));
+		return unionSDF(unionSDF(differenceSDF(unionSDF(Box1, Ball4), Ball1), unionSDF(Box2, Ball2)), differenceSDF(Ball3, Box3));
+	}
+
+	float shortestDistanceToSurface(vec3 eye, vec3 marchingDirection, float start, float end){
+		float depth = start;
+		for (int i=0; i < MAX_MARCHING_STEPS; i++){
+			float dist = sceneSDF(eye + depth * marchingDirection);
+			if (dist < EPSILON) {
+				return depth;
+			}
+			depth += dist;
+			if (depth >= end) {
+				return end; 
+			}
+		}
+		return end; 
+	}
+	vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord){
+		vec2 xy = fragCoord.xy - size / 2.0; // why do we divide it by two here?
+		float z = size.y / tan(radians(fieldOfView) / 2.0);
+		return normalize(vec3(xy, -z));
+	}
+	vec3 estimateNormal(vec3 p){
+		return normalize(vec3(
+			sceneSDF(vec3(p.x + EPSILON, p.y, p.z)) - sceneSDF(vec3(p.x - EPSILON, p.y, p.z)),
+			sceneSDF(vec3(p.x, p.y + EPSILON, p.z)) - sceneSDF(vec3(p.x, p.y - EPSILON, p.z)),
+			sceneSDF(vec3(p.x, p.y, p.z + EPSILON)) - sceneSDF(vec3(p.x, p.y, p.z - EPSILON ))
+		));
+	}
+	vec3 phongContribForLight(vec3 light_diffuse, vec3 light_specular, float alpha, vec3 p, vec3 eye, vec3 light_position, vec3 light_intensity){
+
+		vec3 N = estimateNormal(p); // N -> Normal
+		vec3 L = normalize(light_position - p); // L -> Light position normal
+		vec3 V = normalize(eye - p); // V = view normal
+		vec3 R = normalize(reflect(-L, N)); //R -> Reflection
+
+		float dotLN = dot(L, N);
+		float dotRV = dot(R, V);
+
+
+		// light is not visible from this point of surface because the normal
+		if (dotLN < 0.0) {
+			return vec3(0.0, 0.0, 0.0);
+		}
+
+		if (dotRV < 0.0) {
+			return light_intensity * (light_diffuse * dotLN);
+
+		}
+		return light_intensity * (light_diffuse * dotLN + light_specular * pow(abs(dotRV), alpha)); 
+		// alpha: shininess coefficient
+	}
+
+	vec3 phongIllumination(vec3 light_ambient, vec3 light_diffuse, vec3 light_specular, float alpha, vec3 p, vec3 eye){
+		const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
+		vec3 color = ambientLight * light_ambient;
+
+		vec3 light1_position = vec3(1.0 + 3.0 * time, 2.0, 6.0);
+		vec3 light1_intensity = vec3(1.0);
+
+		color += phongContribForLight(light_diffuse, light_specular, alpha, p, eye, light1_position, light1_intensity);
+
+		vec3 light2_position = vec3( 3.0, 2.0 + 0.3 * time, 2.0);
+		vec3 light2_intensity = vec3(0.5 * time);
+
+		vec3 light2_diffuse = vec3( 0.0, 1.0, 0.2);
+
+		color += phongContribForLight(light2_diffuse, light_specular, alpha, p, eye, light2_position, light2_intensity);
+
+		return color; 
+
+	}
+	void main( ){
+		vec3 dir = rayDirection(45.0, resolution, v_pos.xy);
+		vec3 eye = vec3(4.0, 2.0, 10.0);
+		float dist = shortestDistanceToSurface(eye, dir, MIN_DIST, MAX_DIST);
+
+		if (dist > MAX_DIST - EPSILON){
+			gl_FragColor = vec4(1.0 - 0.4 * sin(time), 0.5, 0.6, 1.0);
+			return;
+		}
+
+		vec3 p = eye + dist * dir;
+
+		vec3 ambient = vec3(1.0 * sin(time), 1.0 * sin(time), 0.3 * sin(time) + 0.7);
+		vec3 diffuse = vec3(1.0, 0.5, 0.2);
+		vec3 specular = vec3(0.0, 0.0, 0.0);
+		float shininess = 30.0;
+
+		vec3 color = phongIllumination(ambient, diffuse, specular, shininess, p, eye);
+
+		gl_FragColor = vec4(color, 1.0);
+
+	}
+	/*
+	void main(){
+		gl_FragColor = vec4(0.0, 1.0 ,0.0, 1.0);
+	}*/
+		
+</script>
+
+<script>
+	var vs = document.getElementById("vertexShader").textContent; 
+	var fs = document.getElementById("fragmentShader").textContent; 
+	var renderer, scene, camera, mesh; 
+
+	renderer = new THREE.WebGLRenderer();
+	//renderer.setClearColor( 0xffffff);
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	document.body.appendChild(renderer.domElement);
+
+	scene = new THREE.Scene();
+
+	var width = window.innerWidth;
+	var height = window.innerHeight; 
+	camera = new THREE.OrthographicCamera(width/-2.0, width/2.0, height/2.0, height/-2.0, 0, 1000);
+	camera.position.z = 0;
+
+	var planeOfView = new THREE.PlaneGeometry(width, height);
+
+	var uniform = {
+		resolution: { type: "v2", value: new THREE.Vector2(width, height)},
+		time: {type: "f", value: 0.0},
+		time2: {type: "f", value: 0.0}
+	};
+
+	var material = new THREE.RawShaderMaterial({
+		uniforms: uniform,
+		vertexShader: vs, 
+		fragmentShader: fs
+
+	});
+	mesh = new THREE.Mesh( planeOfView, material);
+	scene.add( mesh );
+
+	window.addEventListener( 'resize', onWindowResize, false );
+	
+	animate();
+	function animate(){
+		requestAnimationFrame( animate );
+		render();
+	}
+	function render() {
+		var timeNow = performance.now();
+		
+		mesh.material.uniforms.time.value = Math.sin(timeNow * 0.001);
+		mesh.material.uniforms.time2.value += Math.sin(timeNow * 0.00001);
+
+
+		renderer.render( scene, camera );
+	}
+	function onWindowResize( event ) {
+  
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+
+		renderer.setSize( window.innerWidth, window.innerHeight );
+	}
+	
+
+
+</script>
+</body>
+</html>
+

@@ -1,0 +1,23 @@
+* Part C *
+
+My team: 
+
+Shuo-En Li(me), Kevin Wu, Kevin Wu (Not a typo.), Joey Sandmayer
+
+The topic I choose is: 
+
+DEFERRED SHADING.
+
+Deferred shading is a way of rendering that is optimal for rendering complex scene with lots of objects and light sources, different from the traditional method of "forward rendering". This is a popular technique used within games. The information for this technique is a whole lot to unpack, but I will try my best describing it in my own words and understanding.
+
+In this technique, the rendering process is divided into two passes. In the first pass, the vertex shader collects the textures data for each pixels, such as position, diffuse, normal, but instead of directly passing them to fragment shader, it stores it into
+G-Buffer. In G-Buffer, the texture of every vertex attribute is grouped and stored. And then every pixel that doesn't pass the depth test, which means that it is behind other pixel, will be filtered out. This will prevent unnecessary calculation for pixels that can't be seen. After G-Buffer is finished comes the second pass, where we apply the lighting to each pixel. In the lighting pass, we don't do it pixel-by-pixel with all the light sources. Instead, we only add into calculation the light sources that will considerably influence that pixel. This will require a sphere radius method to calculate the effective range of the light sources. This method is called "lighting volumn". It is the gist of deferred shading that allows it to process thousands of light sources efficiently. 
+
+That's the process in my own word after reading these two blogposts. 
+http://ogldev.atspace.co.uk/www/tutorial35/tutorial35.html
+https://learnopengl.com/Advanced-Lighting/Deferred-Shading
+
+For now, the large concept seems to make sense, but the actual implementation of it (which are shown in c++ in the blogpost ) is still too obscure to me. I don't know how I'll be able to adapt it into GLSL and THREE.js. And because this method is only ideal for a complex scene, which I've never had a chance of creating, I don't know how I can test its performance either. Nevertheless, it seems like a very useful method in game development, so I want to take this chance to learn about it. 
+
+
+
